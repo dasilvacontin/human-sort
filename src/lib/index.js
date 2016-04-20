@@ -1,33 +1,48 @@
 // @flow
-import _ from 'lodash'
-import { readFile } from 'fs'
-import { promisify } from 'bluebird'
-const readFileAsync = promisify(readFile)
+/**
+ * Performs an insertion sort where for every comparison we consult the human
+ * (represented by a `compare` function that returns a Promise).
+ *
+ * You can resuse `humanSort` to create your human-sort clients. e.g., for a
+ * command line application (such as the one included in this package), one
+ * would probably implement the comparison function as a Promise-returning
+ * function that asks the user which of the two elements that are being compared
+ * should go first, wait for input/response via stdin, and resolve the Promise
+ * depending on the user's input.
+ **/
+type humanSortOptions = { maxSize : ?number, updatesReceiver: ?Function }
 
-function sleep (ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
+export async function humanSort (sourceArray : Array, humanCompare : Function,
+  options : humanSortOptions) {
+  sourceArray = sourceArray.slice(0) // clone
+  let sortedArray = []
+  let maxSize = Number(options.maxSize) || Infinity
+  let updatesReceiver = options.updatesReceiver || (_ => {})
 
-export async function listWords (files: Array<string>) {
-  let promises = files.map(filename => readFileAsync(filename))
-  let buffers = await Promise.all(promises)
-  let wordsPerFile = buffers.map(_.words)
-  let words = _.union.apply(_, wordsPerFile)
-  words = words.filter(word => word.match(/\D/)) // filter out numbers
-  return words
-}
+  if (sourceArray.length === 0) return sortedArray
 
-// until https://phabricator.babeljs.io/T7295 gets fixed!
-Object.defineProperty(exports, '__esModule', {
-  value: true
-})
-exports.default = listWords
+  // insert firt elem into sortedArray – no need to sort
+  let firstElem = sourceArray.pop()
+  sortedArray.push(firstElem)
 
-export async function fun () {
-  console.log('hello')
-  await sleep(1000)
-  console.log('world')
-  await sleep(1000)
-  let words = await listWords(['package.json', '.babelrc', '.eslintrc'])
-  console.log(words.join(', '))
+  while (sourceArray.length) {
+    var elem = sourceArray.pop()
+    updatesReceiver(sourceArray, sortedArray, elem)
+
+    let targetPos
+    for (targetPos = 0; targetPos < sortedArray.length; ++targetPos) {
+      let rival = sortedArray[targetPos]
+      let diff = await humanCompare(elem, rival)
+      if (typeof diff !== 'number') {
+        throw new TypeError(`Expected 'humanCompare' to return a Promise that
+          resolves into a Number, got ${diff}, a ${typeof diff}`)
+      }
+      if (diff <= 0) break
+    }
+    sortedArray.splice(targetPos, 0, elem)
+
+    // remove exceeding element
+    while (sortedArray.length > maxSize) sortedArray.pop()
+  }
+  return sortedArray
 }
