@@ -1,6 +1,6 @@
 {
   "name": "@dasilvacontin/human-sort",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Sort an array using your judgement as a comparator.",
   "main": "lib/index.js",
   "bin": {
